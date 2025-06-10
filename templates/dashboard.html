@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Health Monitor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .dashboard {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px 0;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 300;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .last-updated {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.25);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-healthy { background-color: #4CAF50; }
+        .status-warning { background-color: #FF9800; }
+        .status-critical { background-color: #F44336; }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .metric-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .metric-value {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            transition: width 0.5s ease;
+            border-radius: 4px;
+        }
+
+        .progress-low { background: #4CAF50; }
+        .progress-medium { background: #FF9800; }
+        .progress-high { background: #F44336; }
+
+        .chart-container {
+            position: relative;
+            height: 200px;
+            margin-top: 15px;
+        }
+
+        .large-chart {
+            grid-column: span 2;
+        }
+
+        .alerts {
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid rgba(244, 67, 54, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .alert-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(244, 67, 54, 0.2);
+        }
+
+        .alert-item:last-child {
+            border-bottom: none;
+        }
+
+        .alert-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #F44336;
+            margin-right: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .controls {
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            margin: 0 10px;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .system-overview {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .overview-item {
+            text-align: center;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+
+        .overview-value {
+            font-size: 2.5rem;
+            font-weight: 300;
+            margin-bottom: 5px;
+        }
+
+        .overview-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <h1>System Health Monitor</h1>
+            <div class="last-updated">Last Updated: <span id="lastUpdated"></span></div>
+        </div>
+
+        <div class="system-overview card">
+            <div class="overview-item">
+                <div class="overview-value" id="uptime">99.9%</div>
+                <div class="overview-label">System Uptime</div>
+            </div>
+            <div class="overview-item">
+                <div class="overview-value" id="totalServices">12</div>
+                <div class="overview-label">Active Services</div>
+            </div>
+            <div class="overview-item">
+                <div class="overview-value" id="totalAlerts">3</div>
+                <div class="overview-label">Active Alerts</div>
+            </div>
+            <div class="overview-item">
+                <div class="overview-value" id="responseTime">245ms</div>
+                <div class="overview-label">Avg Response</div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- CPU Usage -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">CPU Usage</h3>
+                    <div class="status-indicator status-healthy"></div>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Current Load</span>
+                    <span class="metric-value" id="cpuUsage">45%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill progress-medium" id="cpuProgress" style="width: 45%"></div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="cpuChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Memory Usage -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Memory Usage</h3>
+                    <div class="status-indicator status-warning"></div>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Used Memory</span>
+                    <span class="metric-value" id="memoryUsage">6.4 GB / 8 GB</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill progress-high" id="memoryProgress" style="width: 80%"></div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="memoryChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Disk Usage -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Disk Usage</h3>
+                    <div class="status-indicator status-healthy"></div>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">System Drive</span>
+                    <span class="metric-value">250 GB / 500 GB</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill progress-medium" style="width: 50%"></div>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Data Drive</span>
+                    <span class="metric-value">1.2 TB / 2 TB</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill progress-medium" style="width: 60%"></div>
+                </div>
+            </div>
+
+            <!-- Network Traffic -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Network Traffic</h3>
+                    <div class="status-indicator status-healthy"></div>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Download</span>
+                    <span class="metric-value" id="downloadSpeed">125 Mbps</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Upload</span>
+                    <span class="metric-value" id="uploadSpeed">85 Mbps</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="networkChart"></canvas>
+                </div>
+            </div>
+
+            <!-- System Performance -->
+            <div class="card large-chart">
+                <div class="card-header">
+                    <h3 class="card-title">System Performance Overview</h3>
+                    <div class="status-indicator status-healthy"></div>
+                </div>
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="performanceChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Services Status -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Services Status</h3>
+                    <div class="status-indicator status-healthy"></div>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Web Server</span>
+                    <span class="metric-value" style="color: #4CAF50;">Running</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Database</span>
+                    <span class="metric-value" style="color: #4CAF50;">Running</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Cache Server</span>
+                    <span class="metric-value" style="color: #FF9800;">Degraded</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">File System</span>
+                    <span class="metric-value" style="color: #4CAF50;">Healthy</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Security Service</span>
+                    <span class="metric-value" style="color: #4CAF50;">Active</span>
+                </div>
+            </div>
+
+            <!-- Temperature & Power -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Temperature & Power</h3>
+                    <div class="status-indicator status-healthy"></div>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">CPU Temp</span>
+                    <span class="metric-value" id="cpuTemp">62°C</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">GPU Temp</span>
+                    <span class="metric-value" id="gpuTemp">58°C</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Power Usage</span>
+                    <span class="metric-value" id="powerUsage">180W</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Fan Speed</span>
+                    <span class="metric-value" id="fanSpeed">1,850 RPM</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alerts Section -->
+        <div class="alerts">
+            <h3 style="margin-bottom: 15px;">System Alerts</h3>
+            <div class="alert-item">
+                <div class="alert-icon">!</div>
+                <div>
+                    <strong>High Memory Usage</strong> - Memory usage is at 80%. Consider closing unnecessary applications.
+                </div>
+            </div>
+            <div class="alert-item">
+                <div class="alert-icon">⚠</div>
+                <div>
+                    <strong>Cache Service Degraded</strong> - Cache server response time increased by 200%.
+                </div>
+            </div>
+            <div class="alert-item">
+                <div class="alert-icon">i</div>
+                <div>
+                    <strong>Scheduled Maintenance</strong> - System backup scheduled for tonight at 2:00 AM.
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <button class="btn" onclick="refreshData()">Refresh Data</button>
+            <button class="btn" onclick="exportReport()">Export Report</button>
+            <button class="btn" onclick="toggleAutoRefresh()">Auto Refresh: <span id="autoRefreshStatus">ON</span></button>
+        </div>
+    </div>
+
+    <script>
+        // Global variables for charts
+        let cpuChart, memoryChart, networkChart, performanceChart;
+        let autoRefresh = true;
+        let refreshInterval;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts();
+            updateLastUpdated();
+            startAutoRefresh();
+        });
+
+        function initializeCharts() {
+            // CPU Chart
+            const cpuCtx = document.getElementById('cpuChart').getContext('2d');
+            cpuChart = new Chart(cpuCtx, {
+                type: 'line',
+                data: {
+                    labels: generateTimeLabels(20),
+                    datasets: [{
+                        label: 'CPU Usage %',
+                        data: generateRandomData(20, 30, 70),
+                        borderColor: '#4CAF50',
+                        backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, max: 100, grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: 'white' } },
+                        x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: 'white' } }
+                    }
+                }
+            });
+
+            // Memory Chart
+            const memoryCtx = document.getElementById('memoryChart').getContext('2d');
+            memoryChart = new Chart(memoryCtx, {
+                type: 'line',
+                data: {
+                    labels: generateTimeLabels(20),
+                    datasets: [{
+                        label: 'Memory Usage %',
+                        data: generateRandomData(20, 70, 85),
+                        borderColor: '#FF9800',
+                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, max: 100, grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: 'white' } },
+                        x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: 'white' } }
+                    }
+                }
+            });
+
+            // Network Chart
+            const networkCtx = document.getElementById('networkChart').getContext('2d');
+            networkChart = new Chart(networkCtx, {
+                type: 'line',
+                data: {
+                    labels: generateTimeLabels(20),
+                    datasets: [
+                        {
+                            label: 'Download',
+                            data: generateRandomData(20, 80, 150),
+                            borderColor: '#2196F3',
+                            backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Upload',
+                            data: generateRandomData(20, 50, 100),
+                            borderColor: '#9C27B0',
+                            backgroundColor: 'rgba(156, 39, 176, 0.1)',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: true, labels: { color: 'white' } } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: 'white' } },
+                        x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: 'white' } }
+                    }
+                }
+            });
+
+            // Performance Overview Chart
+            const performanceCtx = document.getElementById('performanceChart').getContext('2d');
+            performanceChart = new Chart(performanceCtx, {
+                type: 'line',
+                data: {
+                    labels: generateTimeLabels(30),
+                    datasets: [
+                        {
+                            label: 'CPU %',
+                            data: generateRandomData(30, 30, 70),
+                            borderColor: '#4CAF50',
+                            backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Memory %',
+                            data: generateRandomData(30, 70, 85),
+                            borderColor: '#FF9800',
+                            backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Disk I/O',
+                            data: generateRandomData(30, 10, 40),
+                            borderColor: '#9C27B0',
+                            backgroundColor: 'rgba(156, 39, 176, 0.1)',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: true, labels: { color: 'white' } } },
+                    scales: {
+                        y: { beginAtZero: true, max: 100, grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: 'white' } },
+                        x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: 'white' } }
+                    }
+                }
+            });
+        }
+
+        function generateTimeLabels(count) {
+            const labels = [];
+            const now = new Date();
+            for (let i = count - 1; i >= 0; i--) {
+                const time = new Date(now - i * 60000);
+                labels.push(time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+            }
+            return labels;
+        }
+
+        function generateRandomData(count, min, max) {
+            return Array.from({ length: count }, () => Math.floor(Math.random() * (max - min + 1)) + min);
+        }
+
+        async function updateMetrics() {
+            try {
+                const response = await fetch('/api/system-data');
+                const data = await response.json();
+                
+                if (data.error) {
+                    console.error('Backend error:', data.error);
+                    return;
+                }
+
+                // === UPDATE SYSTEM OVERVIEW ===
+                document.getElementById('uptime').textContent = data.system.uptime_days.toFixed(1) + ' days';
+                document.getElementById('totalServices').textContent = data.services.total_processes;
+                document.getElementById('totalAlerts').textContent = data.alerts.length;
+                document.getElementById('responseTime').textContent = '< 1ms';
+
+                // === UPDATE CPU DATA ===
+                document.getElementById('cpuUsage').textContent = data.cpu.usage_percent + '%';
+                document.getElementById('cpuProgress').style.width = data.cpu.usage_percent + '%';
+                
+                // Update CPU progress bar color
+                const cpuProgressBar = document.getElementById('cpuProgress');
+                if (data.cpu.usage_percent > 80) {
+                    cpuProgressBar.className = 'progress-fill progress-high';
+                } else if (data.cpu.usage_percent > 60) {
+                    cpuProgressBar.className = 'progress-fill progress-medium';
+                } else {
+                    cpuProgressBar.className = 'progress-fill progress-low';
+                }
+
+                // === UPDATE MEMORY DATA ===
+                document.getElementById('memoryUsage').textContent = 
+                    `${data.memory.used_gb} GB / ${data.memory.total_gb} GB`;
+                document.getElementById('memoryProgress').style.width = data.memory.percent + '%';
+                
+                // Update memory progress bar color
+                const memoryProgressBar = document.getElementById('memoryProgress');
+                if (data.memory.percent > 85) {
+                    memoryProgressBar.className = 'progress-fill progress-high';
+                } else if (data.memory.percent > 70) {
+                    memoryProgressBar.className = 'progress-fill progress-medium';
+                } else {
+                    memoryProgressBar.className = 'progress-fill progress-low';
+                }
+
+                // === UPDATE TEMPERATURE DATA ===
+                if (data.temperature.cpu_temp) {
+                    document.getElementById('cpuTemp').textContent = data.temperature.cpu_temp + '°C';
+                }
+                if (data.temperature.system_temp) {
+                    document.getElementById('gpuTemp').textContent = data.temperature.system_temp + '°C';
+                }
+
+                // === UPDATE NETWORK DATA ===
+                document.getElementById('downloadSpeed').textContent = 
+                    data.network.current_download_mbps + ' Mbps';
+                document.getElementById('uploadSpeed').textContent = 
+                    data.network.current_upload_mbps + ' Mbps';
+
+                // === UPDATE POWER DATA ===
+                if (data.power.estimated_watts) {
+                    document.getElementById('powerUsage').textContent = data.power.estimated_watts + 'W';
+                }
+                
+                // Simulate fan speed based on CPU temp and usage
+                const fanSpeed = Math.round(1000 + (data.cpu.usage_percent * 15) + 
+                    (data.temperature.cpu_temp ? data.temperature.cpu_temp * 10 : 0));
+                document.getElementById('fanSpeed').textContent = fanSpeed.toLocaleString() + ' RPM';
+
+                // === UPDATE DISK USAGE ===
+                updateDiskUsage(data.disk);
+
+                // === UPDATE SERVICES STATUS ===
+                updateServicesStatus(data.services);
+
+                // === UPDATE ALERTS ===
+                updateAlerts(data.alerts);
+
+                // === UPDATE CHARTS ===
+                updateChartData(cpuChart, data.cpu.usage_percent);
+                updateChartData(memoryChart, data.memory.percent);
+                updateChartData(networkChart, data.network.current_download_mbps, data.network.current_upload_mbps);
+
+                // === UPDATE STATUS INDICATORS ===
+                updateStatusIndicators(data);
+
+            } catch (error) {
+                console.error('Failed to fetch system data:', error);
+                // Keep showing last known data instead of failing completely
+            }
+        }
+
+        function updateDiskUsage(diskData) {
+            // Update main disk display (first disk)
+            if (diskData && diskData.length > 0) {
+                const mainDisk = diskData[0];
+                const diskElements = document.querySelectorAll('.metric');
+                
+                // Find and update disk metrics
+                diskElements.forEach(element => {
+                    const label = element.querySelector('.metric-label');
+                    if (label && label.textContent.includes('System Drive')) {
+                        element.querySelector('.metric-value').textContent = 
+                            `${mainDisk.used_gb} GB / ${mainDisk.total_gb} GB`;
+                        const progressBar = element.parentNode.querySelector('.progress-bar .progress-fill');
+                        if (progressBar) {
+                            progressBar.style.width = mainDisk.percent + '%';
+                            progressBar.className = mainDisk.percent > 80 ? 'progress-fill progress-high' :
+                                                   mainDisk.percent > 60 ? 'progress-fill progress-medium' :
+                                                   'progress-fill progress-low';
+                        }
+                    }
+                });
+            }
+        }
+
+        function updateServicesStatus(services) {
+            const serviceElements = document.querySelectorAll('.metric');
+            serviceElements.forEach(element => {
+                const label = element.querySelector('.metric-label');
+                const value = element.querySelector('.metric-value');
+                
+                if (label && value) {
+                    if (label.textContent.includes('Web Server')) {
+                        value.textContent = services.web_server ? 'Running' : 'Stopped';
+                        value.style.color = services.web_server ? '#4CAF50' : '#F44336';
+                    }
+                    else if (label.textContent.includes('Database')) {
+                        value.textContent = services.database ? 'Running' : 'Stopped';
+                        value.style.color = services.database ? '#4CAF50' : '#F44336';
+                    }
+                    else if (label.textContent.includes('Security Service')) {
+                        value.textContent = services.security ? 'Active' : 'Inactive';
+                        value.style.color = services.security ? '#4CAF50' : '#F44336';
+                    }
+                }
+            });
+        }
+
+        function updateAlerts(alerts) {
+            const alertsContainer = document.querySelector('.alerts');
+            const alertsList = alertsContainer.querySelector('div:not(h3)') ? 
+                alertsContainer : alertsContainer.parentNode;
+            
+            // Clear existing alerts
+            const existingAlerts = alertsList.querySelectorAll('.alert-item');
+            existingAlerts.forEach(alert => alert.remove());
+            
+            // Add new alerts
+            alerts.forEach(alert => {
+                const alertElement = document.createElement('div');
+                alertElement.className = 'alert-item';
+                alertElement.innerHTML = `
+                    <div class="alert-icon">${alert.icon}</div>
+                    <div>
+                        <strong>${alert.level.toUpperCase()}</strong> - ${alert.message}
+                    </div>
+                `;
+                alertsContainer.appendChild(alertElement);
+            });
+        }
+
+        function updateStatusIndicators(data) {
+            // Update status indicators based on system health
+            const indicators = document.querySelectorAll('.status-indicator');
+            
+            indicators.forEach((indicator, index) => {
+                // Reset classes
+                indicator.className = 'status-indicator';
+                
+                // Set status based on different metrics
+                switch(index) {
+                    case 0: // CPU status
+                        if (data.cpu.usage_percent > 80) {
+                            indicator.classList.add('status-critical');
+                        } else if (data.cpu.usage_percent > 60) {
+                            indicator.classList.add('status-warning');
+                        } else {
+                            indicator.classList.add('status-healthy');
+                        }
+                        break;
+                    case 1: // Memory status
+                        if (data.memory.percent > 85) {
+                            indicator.classList.add('status-critical');
+                        } else if (data.memory.percent > 70) {
+                            indicator.classList.add('status-warning');
+                        } else {
+                            indicator.classList.add('status-healthy');
+                        }
+                        break;
+                    default:
+                        indicator.classList.add('status-healthy');
+                }
+            });
+        }
+
+        function updateChartData(chart, ...values) {
+            chart.data.labels.shift();
+            chart.data.labels.push(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+            
+            values.forEach((value, index) => {
+                if (chart.data.datasets[index]) {
+                    chart.data.datasets[index].data.shift();
+                    chart.data.datasets[index].data.push(value);
+                }
+            });
+            
+            chart.update('none');
+        }
+
+        function updateLastUpdated() {
+            document.getElementById('lastUpdated').textContent = new Date().toLocaleString();
+        }
+
+        function refreshData() {
+            updateMetrics();
+            updateLastUpdated();
+            
+            // Add visual feedback
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = 'Refreshing...';
+            btn.disabled = true;
+            
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }, 1000);
+        }
+
+        function startAutoRefresh() {
+            if (refreshInterval) clearInterval(refreshInterval);
+            refreshInterval = setInterval(() => {
+                if (autoRefresh) {
+                    updateMetrics();
+                    updateLastUpdated();
+                }
+            }, 5000);
+        }
+
+        function toggleAutoRefresh() {
+            autoRefresh = !autoRefresh;
+            document.getElementById('autoRefreshStatus').textContent = autoRefresh ? 'ON' : 'OFF';
+            
+            if (autoRefresh) {
+                startAutoRefresh();
+            } else {
+                clearInterval(refreshInterval);
+            }
+        }
+
+        function exportReport() {
+            const reportData = {
+                timestamp: new Date().toISOString(),
+                systemHealth: {
+                    uptime: document.getElementById('uptime').textContent,
+                    activeServices: document.getElementById('totalServices').textContent,
+                    activeAlerts: document.getElementById('totalAlerts').textContent,
+                    avgResponseTime: document.getElementById('responseTime').textContent
+                },
+                performance: {
+                    cpu: document.getElementById('cpuUsage').textContent,
+                    memory: document.getElementById('memoryUsage').textContent,
+                    cpuTemp: document.getElementById('cpuTemp').textContent,
+                    gpuTemp: document.getElementById('gpuTemp').textContent
+                }
+            };
+
+            const dataStr = JSON.stringify(reportData, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            
+            const exportFileDefaultName = `system-health-report-${new Date().toISOString().split('T')[0]}.json`;
+            
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+        }
+
+        // Initialize random data updates
+        setTimeout(() => {
+            updateMetrics();
+        }, 1000);
+    </script>
+</body>
+</html>
