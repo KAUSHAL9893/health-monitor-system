@@ -80,7 +80,9 @@ http://localhost:5000
    - Power usage is estimated from CPU load.
 
 ---
-![Dashboard Screenshot](static/images/dashboard.png)
+![Dashboard Screenshot](static/images/Dashboard_image_1.png)
+
+![Dashboard Screenshot](static/images/Dashboard_image_2.png)
 
 
 
